@@ -12,7 +12,9 @@
 // this class takes two absolute path and find all same file(binary)
 // You can get this using the getAllSame function
 const unsigned FNV_32_PRIME = 0x01000193;
+const unsigned HVAL_START = 0x811c9dc5;
 #define BUFFER_SIZE 100000
+
 class SameBinary
 {
 
@@ -21,6 +23,8 @@ class SameBinary
 		{
 			__initMap();
 		}
+		~SameBinary()
+		{}
 
 		//change directory
 		void setNewDir(const std::string & firstDir, const std::string & secondDir)
@@ -50,12 +54,14 @@ class SameBinary
 				std::cout << std::endl;
 			}
 		}
-		
+
 	private:
 		std::string 								_dirNameFirst;
 		std::string 								_dirNameSecond;
 		std::map<size_t, std::vector<std::string> > _same;
 		std::map<size_t, std::vector<std::string> > _result;
+
+		char 										buff[BUFFER_SIZE];
 
 		SameBinary(const SameBinary & copy);
 		SameBinary & operator=(const SameBinary);
@@ -96,12 +102,11 @@ class SameBinary
 				int fd = open((listFile[i]).c_str(), O_RDONLY);
 				if (fd == -1)
 					continue;
-				char buff[BUFFER_SIZE];
-				unsigned int hval = 0x811c9dc5;
+				unsigned int hval = HVAL_START;
 				while (1)
 				{
 					int i = read(fd, &buff, BUFFER_SIZE - 1);
-					buff[i + 1] = 0;
+					buff[i] = 0;
 					hval = __hashFile(buff, hval);
 					if (i != BUFFER_SIZE - 1)
 						break;
