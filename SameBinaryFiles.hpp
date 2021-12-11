@@ -2,6 +2,7 @@
 #include <string>
 #include <map>
 #include <vector>
+#include <unordered_map>
 #include <boost/filesystem.hpp>
 #include <iostream>
 #include <stdio.h>
@@ -13,7 +14,7 @@
 // You can get this using the getAllSame function
 const unsigned FNV_32_PRIME = 0x01000193;
 const unsigned HVAL_START = 0x811c9dc5;
-#define BUFFER_SIZE 100000
+#define BUFFER_SIZE 500
 
 class SameBinary
 {
@@ -73,14 +74,27 @@ class SameBinary
 				throw ("directory not found");
         }
 
-		std::vector<std::string> __readFileInDir(const std::string & directory)
+		std::map<unsigned long, std::vector<std::string> > __readFileInDir(const std::string & directoryFirst, const std::string & directorySecond)
 		{
 
-			std::vector<std::string> result;
-			for (boost::filesystem::recursive_directory_iterator it(directory), end; it != end; ++it)
-				if (boost::filesystem::is_regular_file(*it))
-					result.push_back(it->path().generic_string());
+			std::map<unsigned long, std::vector<std::string> > result;
 
+
+			for (boost::filesystem::recursive_directory_iterator it(directoryFirst), end; it != end; ++it)
+				if (boost::filesystem::is_regular_file(*it))
+					result[boost::filesystem::file_size(it->path())].push_back((it->path().generic_string()));
+
+			for (boost::filesystem::recursive_directory_iterator it(directorySecond), end; it != end; ++it)
+				if (boost::filesystem::is_regular_file(*it))
+					result[boost::filesystem::file_size(it->path())].push_back((it->path().generic_string()));
+			for (std::map<unsigned long, std::vector<std::string> >::iterator it = result.begin(); it != result.end(); ++it)
+			{
+				if (it->second.size() <= 1)
+				{
+					result.erase(it);
+					--it;
+				}
+			}
 
 			return result;
 		}
@@ -95,23 +109,69 @@ class SameBinary
 			return hval;
 		}
 
-		void __findHashAllfile(std::vector<std::string> listFile)
+		struct fileParam
 		{
+			unsigned int	hash;
+			std::string		fileName;
+			unsigned int	fd;
+		};
+
+		void __findSameAllfile(std::vector<std::string> listFile)
+		{
+
+			std::vector<std::string> result;
+			std::vector<fileParam>	 file;
+
 			for (size_t i = 0; i < listFile.size(); ++i)
 			{
 				int fd = open((listFile[i]).c_str(), O_RDONLY);
 				if (fd == -1)
-					continue;
-				unsigned int hval = HVAL_START;
-				while (1)
 				{
-					int i = read(fd, &buff, BUFFER_SIZE - 1);
-					buff[i] = 0;
-					hval = __hashFile(buff, hval);
-					if (i != BUFFER_SIZE - 1)
-						break;
+					listFile.erase(listFile.begin() + i);
+					i = 0;
+					continue;
 				}
-				_same[hval].push_back(listFile[i]);
+				fileParam tmp;
+				tmp.hash = HVAL_START;
+				tmp.fileName = listFile[i];
+				tmp.fd = fd;
+				file.push_back(tmp);
+			}
+			int size_read = 0;
+			while (1)
+			{
+				std::unordered_map<unsigned int, size_t> findOneFile;
+				for (size_t i = 0; i < file.size(); ++i)
+				{
+					size_read = read(file[i].fd, &buff, BUFFER_SIZE - 1);
+					buff[size_read] = 0;
+					file[i].hash = __hashFile(buff, file[i].hash);
+					findOneFile[file[i].hash] += 1;
+				}
+
+				for (std::unordered_map<unsigned int, size_t>::iterator it = findOneFile.begin(); it != findOneFile.end(); ++it)
+				{
+					if (it->second <= 1)
+					{
+						for (size_t i = 0; i < file.size(); ++i)
+						{
+							if (file[i].hash == it->first)
+							{
+								file.erase(i + file.begin());
+								break;
+							}
+						}
+					}
+				}
+
+				if (size_read == 0)
+					break;
+			}
+
+			for (size_t i = 0; i < file.size(); ++i)
+			{
+				close(file[i].fd);
+				_same[file[i].hash].push_back(file[i].fileName);
 			}
 		}
 		
@@ -130,8 +190,9 @@ class SameBinary
 		void __initMap( void )
 		{
 			__checkDirExist();
-			__findHashAllfile(__readFileInDir(_dirNameFirst));
-			__findHashAllfile(__readFileInDir(_dirNameSecond));
+			std::map<unsigned long, std::vector<std::string> > tmpMap = __readFileInDir(_dirNameFirst, _dirNameSecond);
+			for (std::map<unsigned long, std::vector<std::string> >::iterator it = tmpMap.begin(); it != tmpMap.end(); ++it)
+				__findSameAllfile(it->second);
 			__makeMapIndex();
 		}
 };
