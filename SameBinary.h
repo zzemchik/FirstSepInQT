@@ -1,7 +1,6 @@
 #ifndef SAMEBINARY_H
 #define SAMEBINARY_H
 
-
 #include <string>
 #include <map>
 #include <vector>
@@ -19,7 +18,7 @@
 // You can get this using the getAllSame function
 const unsigned FNV_32_PRIME = 0x01000193;
 const unsigned HVAL_START = 0x811c9dc5;
-#define BUFFER_SIZE 2048
+#define BUFFER_SIZE 100000
 
 class SameBinary
 {
@@ -27,12 +26,11 @@ class SameBinary
     public:
         SameBinary(const std::string & firstDir, const std::string & secondDir) : _dirNameFirst(firstDir), _dirNameSecond(secondDir)
         {
-            if (firstDir == "" || secondDir == "")
-                        throw "Write directory!";
             if (firstDir == secondDir)
-                        throw "The same directory!";
+                throw "The same directory!";
             __initMap();
         }
+
         ~SameBinary()
         {}
 
@@ -57,7 +55,7 @@ class SameBinary
 
             for (std::map<size_t, std::vector<std::string> >::iterator it = _result.begin(); it != _result.end(); ++it)
             {
-                result += std::to_string(it->first) + '.';
+                result += std::to_string(it->first);
                 for (size_t i = 0; i < it->second.size(); ++i)
                     result += ' ' + it->second[i];
                 result += '\n';
@@ -72,9 +70,7 @@ class SameBinary
             {
                 std::cout << it->first;
                 for (size_t i = 0; i < it->second.size(); ++i)
-                {
                     std::cout << " " << it->second[i];
-                }
                 std::cout << std::endl;
             }
         }
@@ -84,22 +80,17 @@ class SameBinary
         std::string 								_dirNameSecond;
         std::map<size_t, std::vector<std::string> > _same;
         std::map<size_t, std::vector<std::string> > _result;
-
         char 										buff[BUFFER_SIZE];
 
         SameBinary(const SameBinary & copy);
         SameBinary & operator=(const SameBinary);
         SameBinary();
 
-
-
-
         void __checkDirExist( void )
         {
             if (!(std::filesystem::is_directory(_dirNameFirst) && std::filesystem::is_directory(_dirNameSecond)))
-                throw ("directory not found");
+                throw ("Directory not found!");
         }
-
 
         std::map<unsigned long, std::vector<std::string> > __readFileInDir(const std::string & directoryFirst, const std::string & directorySecond)
         {
@@ -146,7 +137,7 @@ class SameBinary
             unsigned int	fd;
         };
 
-        void __findSameAllfile(std::vector<std::string> listFile)
+        void __findSameAllfile(std::vector<std::string> listFile, unsigned long sizeFiles)
         {
             std::vector<std::string> result;
             std::vector<fileParam>	 file;
@@ -169,13 +160,21 @@ class SameBinary
             if (file.size() == 0)
                 return ;
             int size_read = 0;
+            int readSize;
+            if (sizeFiles < 1000)
+                readSize = 100;
+            else if (sizeFiles < 10000)
+                readSize = 1000;
+            else if (sizeFiles < 100000)
+                readSize = 10000;
+            else
+                readSize = 100000;
             while (1)
             {
-
                 std::unordered_map<unsigned int, size_t> findOneFile;
                 for (size_t i = 0; i < file.size(); ++i)
                 {
-                    size_read = read(file[i].fd, &buff, BUFFER_SIZE - 1);
+                    size_read = _read(file[i].fd, &buff, readSize - 1);
                     buff[size_read] = 0;
                     file[i].hash = __hashFile(buff, file[i].hash);
                     findOneFile[file[i].hash] += 1;
@@ -197,11 +196,10 @@ class SameBinary
 
                 if (size_read == 0 || file.size() <= 0)
                     break;
-
             }
             for (size_t i = 0; i < file.size(); ++i)
             {
-                close(file[i].fd);
+                _close(file[i].fd);
                 _same[file[i].hash].push_back(file[i].fileName);
             }
         }
@@ -223,10 +221,11 @@ class SameBinary
             __checkDirExist();
             std::map<unsigned long, std::vector<std::string> > tmpMap = __readFileInDir(_dirNameFirst, _dirNameSecond);
             for (std::map<unsigned long, std::vector<std::string> >::iterator it = tmpMap.begin(); it != tmpMap.end(); ++it)
-                __findSameAllfile(it->second);
+                __findSameAllfile(it->second, it->first);
             if (_same.size() == 0)
                 throw ("Same file not found!");
             __makeMapIndex();
         }
 };
+
 #endif // SAMEBINARY_H
