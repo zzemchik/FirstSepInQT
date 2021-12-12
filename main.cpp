@@ -1,24 +1,11 @@
-#include "SameBinaryFiles.hpp"
+#include "mainwindow.h"
 
-int main()
+#include <QApplication>
+
+int main(int argc, char *argv[])
 {
-	std::string first;
-	std::string second;
-
-	std::cout << "Write two folders in which you would like to find a match." << std::endl;
-	// std::cout << "Write first directory: ";
-	// std::cin >> first;
-	// std::cout << "Write second directory: ";
-	// std::cin >> second;
-	first = "Testdir1";
-	second = "Testdir4";
-	try
-	{
-		SameBinary a(first, second);
-		a.printSame();
-	}
-	catch (const char * ex)
-	{
-		std::cout << ex << std::endl;
-	}
+    QApplication a(argc, argv);
+    MainWindow w;
+    w.show();
+    return a.exec();
 }
